@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="家里有什么" />
+<title>家里有什么</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.13.2/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.13.2/firebase-firestore-compat.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #F3F1EA;
+    font-family: "PingFang SC", "Noto Sans SC", -apple-system, "Segoe UI", sans-serif;
+    color: #2C2A20;
+  }
+  #app { padding: 1.25rem; padding-bottom: 3rem; max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; gap: 0.75rem; }
+  .subtitle { font-size: 13px; color: #8A8778; margin: 4px 0 0; }
+  .low-badge-inline { color: #B07421; font-weight: 500; }
+  .sync-badge { font-size: 11px; margin-top: 2px; }
+  .sync-ok { color: #5B7F5A; }
+  .sync-bad { color: #B0402E; }
+  button { font-family: inherit; cursor: pointer; }
+  .add-btn { background: #2C2A20; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .add-form { background: #fff; border: 1px solid #E4E2D8; border-radius: 12px; padding: 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 10px; }
+  .input, .num-input { border: 1px solid #DEDDD3; border-radius: 8px; padding: 8px 10px; font-size: 14px; outline: none; font-family: inherit; width: 100%; }
+  .cat-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cat-chip { border: 1px solid #DEDDD3; border-radius: 20px; padding: 5px 12px; font-size: 13px; background: #fff; }
+  .cat-chip.dashed { border-style: dashed; color: #6B6A63; }
+  .form-row { display: flex; gap: 8px; }
+  .form-label { display: flex; flex-direction: column; font-size: 11px; color: #8A8778; gap: 4px; flex: 1; }
+  .form-error { color: #B0402E; font-size: 12px; margin: 0; }
+  .save-btn { background: #5B7F5A; color: #fff; border: none; border-radius: 8px; padding: 9px; font-size: 14px; font-weight: 500; width: 100%; }
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .filter-chip { border: 1px solid #DEDDD3; border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 500; background: #fff; color: #6B6A63; }
+  .group-header { font-size: 13px; font-weight: 600; color: #6B6A63; margin: 0 0 6px 4px; }
+  .item-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #E4E2D8; border-left: 4px solid transparent; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .item-info { display: flex; flex-direction: column; gap: 2px; }
+  .item-name { font-size: 14px; font-weight: 500; }
+  .item-meta { font-size: 12px; color: #8A8778; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .expiry-meta { font-size: 11px; margin-top: 2px; }
+  .low-badge { background: #FBF1DD; color: #8C5E12; border-radius: 6px; padding: 1px 6px; font-size: 11px; font-weight: 500; }
+  .item-controls { display: flex; gap: 6px; align-items: center; }
+  .step-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid #DEDDD3; background: #FAF9F5; font-size: 16px; line-height: 1; }
+  .del-btn { border: none; background: transparent; color: #B0402E; font-size: 12px; margin-left: 4px; }
+  .empty { text-align: center; padding: 2.5rem 1rem; background: #fff; border: 1px dashed #DEDDD3; border-radius: 12px; }
+  .empty-title { font-size: 14px; font-weight: 500; margin: 0 0 4px; }
+  .empty-body { font-size: 13px; color: #8A8778; margin: 0; }
+  .cat-add-form { background: #FAF9F5; border: 1px solid #E4E2D8; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .swatch-row { display: flex; gap: 8px; }
+  .swatch-dot { width: 24px; height: 24px; border-radius: 50%; border: none; padding: 0; }
+  .loading-screen { padding: 3rem 1rem; text-align: center; color: #8A8778; }
+  .lock-screen { padding: 4rem 1.5rem; text-align: center; max-width: 320px; margin: 0 auto; }
+  .lock-title { font-size: 18px; font-weight: 600; margin-bottom: 1.5rem; }
+  .lock-input { text-align: center; font-size: 20px; letter-spacing: 4px; margin-bottom: 10px; }
+  .lock-btn { margin-top: 4px; }
+  .tab-row { display: flex; gap: 6px; margin-bottom: 1rem; background: #EAE7DD; padding: 4px; border-radius: 10px; }
+  .tab-btn { flex: 1; border: none; border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 600; background: transparent; color: #6B6A63; }
+  .tab-btn.active { background: #fff; color: #2C2A20; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .shop-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #E4E2D8; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .shop-row.checked { opacity: 0.55; }
+  .shop-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #DEDDD3; background: #fff; flex-shrink: 0; font-size: 14px; line-height: 1; color: #fff; padding: 0; }
+  .shop-check.checked-btn { background: #5B7F5A; border-color: #5B7F5A; }
+  .shop-name { font-size: 14px; font-weight: 500; flex: 1; min-width: 60px; }
+  .shop-name.struck { text-decoration: line-through; }
+  .shop-qty-input { width: 56px; border: 1px solid #DEDDD3; border-radius: 6px; padding: 4px 6px; font-size: 13px; text-align: center; }
+  .shop-price-input { width: 64px; border: 1px solid #DEDDD3; border-radius: 6px; padding: 4px 6px; font-size: 13px; text-align: center; }
+  .clear-bought-btn { background: transparent; border: 1px solid #DEDDD3; color: #6B6A63; border-radius: 8px; padding: 6px 12px; font-size: 12px; margin-bottom: 10px; }
+  .add-to-shop-btn { background: #FBF1DD; color: #8C5E12; border: 1px solid #F0DBA8; border-radius: 6px; padding: 3px 8px; font-size: 11px; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading-screen">连接中…</div></div>
+<script>
+(function () {
+  var PASSWORD_HASH = '122961871d9f94be9a62259af5decbdebd96347b4ce91d4fb5fbf26e57a1a7d2';
+  var UNLOCK_KEY = 'household-inventory-unlocked';
+
+  function sha256Hex(str) {
+    var enc = new TextEncoder().encode(str);
+    return crypto.subtle.digest('SHA-256', enc).then(function (buf) {
+      return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+        return ('00' + b.toString(16)).slice(-2);
+      }).join('');
+    });
+  }
+
+  function renderLock(showError) {
+    var app = document.getElementById('app');
+    app.innerHTML =
+      '<div class="lock-screen">' +
+        '<div class="lock-title">🔒 家里有什么</div>' +
+        '<input class="input lock-input" id="lockInput" type="tel" inputmode="numeric" placeholder="输入密码" maxlength="12" />' +
+        (showError ? '<p class="form-error">密码不对,再试一次</p>' : '') +
+        '<button class="save-btn lock-btn" id="lockBtn">解锁</button>' +
+      '</div>';
+    var input = document.getElementById('lockInput');
+    document.getElementById('lockBtn').onclick = tryUnlock;
+    input.onkeydown = function (e) { if (e.key === 'Enter') tryUnlock(); };
+    input.focus();
+  }
+
+  function tryUnlock() {
+    var val = document.getElementById('lockInput').value;
+    sha256Hex(val).then(function (hash) {
+      if (hash === PASSWORD_HASH) {
+        try { localStorage.setItem(UNLOCK_KEY, 'yes'); } catch (e) {}
+        startApp();
+      } else {
+        renderLock(true);
+      }
+    });
+  }
+
+  var unlockedAlready = false;
+  try { unlockedAlready = localStorage.getItem(UNLOCK_KEY) === 'yes'; } catch (e) {}
+  if (!unlockedAlready) {
+    renderLock(false);
+    return;
+  }
+  startApp();
+
+  function startApp() {
+  var firebaseConfig = {
+    apiKey: "AIzaSyD7cf2xNEcESHHvAkYTYzEU1a6fv9vWz-o",
+    authDomain: "happylife-chencai.firebaseapp.com",
+    projectId: "happylife-chencai",
+    storageBucket: "happylife-chencai.firebasestorage.app",
+    messagingSenderId: "855950367966",
+    appId: "1:855950367966:web:de6cf500e58030cc6d364f",
+    measurementId: "G-883G25BL8W"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var db = firebase.firestore();
+  var docRef = db.collection('household-inventory').doc('shared');
+
+  var DEFAULT_CATEGORIES = [
+    { id: 'seasoning', label: '调料', emoji: '🧂', color: '#A6612F', bg: '#F5EAE0', text: '#6B3E1D' },
+    { id: 'produce', label: '果蔬', emoji: '🥦', color: '#5B7F5A', bg: '#E9F0E4', text: '#3A5638' },
+    { id: 'paper', label: '纸品', emoji: '🧻', color: '#5C7A94', bg: '#E7EEF3', text: '#374E60' },
+    { id: 'other', label: '其他', emoji: '📦', color: '#8B7398', bg: '#EFE8F1', text: '#5B4A62' }
+  ];
+  var CUSTOM_SWATCHES = [
+    { color: '#4C7EA8', bg: '#E3EDF5', text: '#2C4E6B' },
+    { color: '#B85C6B', bg: '#F5E4E7', text: '#7A3A44' },
+    { color: '#7A7A3E', bg: '#EFEFE0', text: '#52521F' },
+    { color: '#3E8A82', bg: '#DFEEEC', text: '#245852' },
+    { color: '#6B6E76', bg: '#E7E8EA', text: '#43454B' },
+    { color: '#B08B2E', bg: '#F5EDD9', text: '#6E5518' }
+  ];
+
+  var state = {
+    items: [],
+    customCategories: [],
+    shoppingList: [],
+    ready: false,
+    syncOk: true,
+    tab: 'inventory',
+    activeCategory: 'all',
+    showAdd: false,
+    showAddCat: false,
+    editingId: null,
+    newShopName: '',
+    form: { name: '', category: 'seasoning', quantity: 1, unit: '个', threshold: 1, location: '', expiryDate: '', totalPrice: '', step: 1 },
+    formError: '',
+    catForm: { label: '', emoji: '🏷️', swatch: 0 },
+    catFormError: '',
+    newShopQty: 1,
+    newShopUnit: '个',
+    shopBudget: ''
+  };
+
+  var applyingRemote = false;
+
+  docRef.onSnapshot(function (doc) {
+    applyingRemote = true;
+    if (doc.exists) {
+      var data = doc.data();
+      state.items = data.items || [];
+      state.customCategories = data.categories || [];
+      state.shoppingList = data.shoppingList || [];
+      state.shopBudget = data.shopBudget || '';
+    } else {
+      docRef.set({ items: [], categories: [], shoppingList: [] });
+    }
+    state.ready = true;
+    state.syncOk = true;
+    render();
+    applyingRemote = false;
+  }, function (err) {
+    console.error('sync error', err);
+    state.syncOk = false;
+    state.ready = true;
+    render();
+  });
+
+  function pushItems() {
+    docRef.set({ items: state.items }, { merge: true }).catch(function (e) {
+      state.syncOk = false; render();
+      console.error('write failed', e);
+    });
+  }
+  function pushCats() {
+    docRef.set({ categories: state.customCategories }, { merge: true }).catch(function (e) {
+      state.syncOk = false; render();
+      console.error('write failed', e);
+    });
+  }
+  function pushShopping() {
+    docRef.set({ shoppingList: state.shoppingList }, { merge: true }).catch(function (e) {
+      state.syncOk = false; render();
+      console.error('write failed', e);
+    });
+  }
+  function pushBudget() {
+    docRef.set({ shopBudget: state.shopBudget }, { merge: true }).catch(function (e) {
+      state.syncOk = false; render();
+      console.error('write failed', e);
+    });
+  }
+  function checkedTotal() {
+    return state.shoppingList.filter(function (s) { return s.checked; })
+      .reduce(function (sum, s) { return sum + (Number(s.price) || 0); }, 0);
+  }
+
+  function allCategories() {
+    return DEFAULT_CATEGORIES.concat(state.customCategories);
+  }
+  function categoryOf(id) {
+    var list = allCategories();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return list[list.length - 1];
+  }
+  function expiryStatus(dateStr) {
+    if (!dateStr) return null;
+    var today = new Date(); today.setHours(0,0,0,0);
+    var exp = new Date(dateStr);
+    var diffDays = Math.round((exp - today) / 86400000);
+    if (diffDays < 0) return { label: '已过期 ' + dateStr, level: 'expired' };
+    if (diffDays <= 7) return { label: diffDays + ' 天后过期', level: 'soon' };
+    return { label: '保质期至 ' + dateStr, level: 'ok' };
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function adjustQty(id, dir) {
+    state.items = state.items.map(function (i) {
+      if (i.id !== id) return i;
+      var step = i.step || 1;
+      var q = Math.max(0, Math.round((i.quantity + dir * step) * 100) / 100);
+      return Object.assign({}, i, { quantity: q });
+    });
+    pushItems();
+    render();
+  }
+  function removeItem(id) {
+    state.items = state.items.filter(function (i) { return i.id !== id; });
+    pushItems();
+    render();
+  }
+
+  function submitAdd() {
+    var f = state.form;
+    var name = f.name.trim();
+    if (!name) { state.formError = '请输入物品名称'; render(); return; }
+    var qty = Number(f.quantity);
+    var th = Number(f.threshold);
+    var step = Number(f.step) || 1;
+    if (isNaN(qty) || qty < 0) { state.formError = '数量请输入有效数字'; render(); return; }
+    if (isNaN(th) || th < 0) { state.formError = '提醒线请输入有效数字'; render(); return; }
+    var unitPrice = null;
+    if (f.totalPrice !== '') {
+      var total = Number(f.totalPrice);
+      if (isNaN(total) || total < 0) { state.formError = '总价请输入有效数字'; render(); return; }
+      if (qty > 0) unitPrice = Math.round((total / qty) * 100) / 100;
+    }
+    var payload = {
+      name: name,
+      category: f.category,
+      quantity: qty,
+      unit: f.unit.trim() || '个',
+      threshold: th,
+      step: step,
+      location: f.location.trim(),
+      expiryDate: f.expiryDate || '',
+      unitPrice: unitPrice
+    };
+    if (state.editingId) {
+      state.items = state.items.map(function (i) {
+        if (i.id !== state.editingId) return i;
+        var merged = Object.assign({}, i, payload);
+        if (payload.unitPrice != null && payload.unitPrice !== i.unitPrice && i.unitPrice != null) {
+          merged.previousUnitPrice = i.unitPrice;
+        }
+        if (payload.unitPrice == null) {
+          merged.unitPrice = i.unitPrice;
+        }
+        return merged;
+      });
+      state.editingId = null;
+    } else {
+      payload.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      state.items.push(payload);
+    }
+    pushItems();
+    state.form = { name: '', category: f.category, quantity: 1, unit: '个', threshold: 1, location: '', expiryDate: '', totalPrice: '', step: 1 };
+    state.formError = '';
+    state.showAdd = false;
+    render();
+  }
+
+  function startEdit(id) {
+    var item = state.items.filter(function (i) { return i.id === id; })[0];
+    if (!item) return;
+    state.editingId = id;
+    state.form = {
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      threshold: item.threshold,
+      location: item.location || '',
+      expiryDate: item.expiryDate || '',
+      totalPrice: '',
+      step: item.step || 1
+    };
+    state.formError = '';
+    state.showAdd = true;
+    render();
+    var top = document.querySelector('.add-form');
+    if (top) top.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function submitAddCategory() {
+    var cf = state.catForm;
+    var label = cf.label.trim();
+    if (!label) { state.catFormError = '请输入分类名称'; render(); return; }
+    if (allCategories().some(function (c) { return c.label === label; })) {
+      state.catFormError = '这个分类名称已经存在'; render(); return;
+    }
+    var swatch = CUSTOM_SWATCHES[cf.swatch % CUSTOM_SWATCHES.length];
+    var id = 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    state.customCategories.push(Object.assign({ id: id, label: label, emoji: cf.emoji.trim() || '🏷️' }, swatch));
+    pushCats();
+    state.form.category = id;
+    state.catForm = { label: '', emoji: '🏷️', swatch: 0 };
+    state.catFormError = '';
+    state.showAddCat = false;
+    render();
+  }
+
+  function addToShopping(itemId) {
+    var already = state.shoppingList.some(function (s) { return s.itemId === itemId && !s.checked; });
+    if (already) return;
+    var item = state.items.filter(function (i) { return i.id === itemId; })[0];
+    if (!item) return;
+    state.shoppingList.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      itemId: item.id,
+      name: item.name,
+      unit: item.unit,
+      addQty: item.step || 1,
+      price: '',
+      checked: false
+    });
+    pushShopping();
+    render();
+  }
+
+  function addCustomShopItem() {
+    var name = state.newShopName.trim();
+    if (!name) return;
+    var qty = Number(state.newShopQty);
+    if (isNaN(qty) || qty < 0) qty = 1;
+    state.shoppingList.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      itemId: null,
+      name: name,
+      unit: state.newShopUnit.trim() || '个',
+      addQty: qty,
+      price: '',
+      checked: false
+    });
+    state.newShopName = '';
+    state.newShopQty = 1;
+    state.newShopUnit = '个';
+    pushShopping();
+    render();
+  }
+
+  function removeShoppingItem(id) {
+    state.shoppingList = state.shoppingList.filter(function (s) { return s.id !== id; });
+    pushShopping();
+    render();
+  }
+
+  function updateShopQty(id, val) {
+    state.shoppingList = state.shoppingList.map(function (s) {
+      return s.id === id ? Object.assign({}, s, { addQty: val }) : s;
+    });
+  }
+  function updateShopUnit(id, val) {
+    state.shoppingList = state.shoppingList.map(function (s) {
+      return s.id === id ? Object.assign({}, s, { unit: val }) : s;
+    });
+  }
+  function updateShopPrice(id, val) {
+    state.shoppingList = state.shoppingList.map(function (s) {
+      return s.id === id ? Object.assign({}, s, { price: val }) : s;
+    });
+  }
+  function saveShopQty() {
+    pushShopping();
+  }
+
+  function toggleShoppingChecked(id) {
+    var entry = state.shoppingList.filter(function (s) { return s.id === id; })[0];
+    if (!entry) return;
+    var addQty = Number(entry.addQty) || 0;
+    var priceNum = entry.price !== '' && entry.price != null ? Number(entry.price) : null;
+    var unitPrice = (priceNum != null && !isNaN(priceNum) && addQty > 0) ? Math.round((priceNum / addQty) * 100) / 100 : null;
+
+    if (!entry.checked) {
+      if (entry.itemId) {
+        state.items = state.items.map(function (i) {
+          if (i.id !== entry.itemId) return i;
+          var q = Math.max(0, Math.round((i.quantity + addQty) * 100) / 100);
+          var updated = Object.assign({}, i, { quantity: q });
+          if (unitPrice != null && unitPrice !== i.unitPrice) {
+            if (i.unitPrice != null) updated.previousUnitPrice = i.unitPrice;
+            updated.unitPrice = unitPrice;
+          }
+          return updated;
+        });
+      } else {
+        var newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        state.items.push({
+          id: newId,
+          name: entry.name,
+          category: 'other',
+          quantity: addQty,
+          unit: entry.unit || '个',
+          threshold: 0,
+          step: 1,
+          location: '',
+          expiryDate: '',
+          unitPrice: unitPrice
+        });
+        entry.itemId = newId;
+      }
+      entry.checked = true;
+      pushItems();
+      var budgetNum = Number(state.shopBudget);
+      if (state.shopBudget !== '' && !isNaN(budgetNum) && budgetNum > 0) {
+        var totalNow = checkedTotal();
+        if (totalNow > budgetNum) {
+          setTimeout(function () {
+            alert('⚠️ 购物清单已超出预算!\n已花 ¥' + Math.round(totalNow * 100) / 100 + ' / 预算 ¥' + budgetNum);
+          }, 50);
+        }
+      }
+    } else {
+      if (entry.itemId) {
+        state.items = state.items.map(function (i) {
+          if (i.id !== entry.itemId) return i;
+          var q = Math.max(0, Math.round((i.quantity - addQty) * 100) / 100);
+          return Object.assign({}, i, { quantity: q });
+        });
+        pushItems();
+      }
+      entry.checked = false;
+    }
+    state.shoppingList = state.shoppingList.map(function (s) { return s.id === id ? entry : s; });
+    pushShopping();
+    render();
+  }
+
+  function clearPurchased() {
+    state.shoppingList = state.shoppingList.filter(function (s) { return !s.checked; });
+    pushShopping();
+    render();
+  }
+
+  function visibleItems() {
+    if (state.activeCategory === '__low__') {
+      return state.items.filter(function (i) { return i.quantity <= i.threshold; });
+    }
+    if (state.activeCategory === 'all') return state.items;
+    return state.items.filter(function (i) { return i.category === state.activeCategory; });
+  }
+  function grouped() {
+    var vis = visibleItems();
+    if (state.activeCategory === '__low__') return [{ category: '__low__', list: vis }];
+    if (state.activeCategory !== 'all') return [{ category: state.activeCategory, list: vis }];
+    return allCategories().map(function (c) {
+      return { category: c.id, list: state.items.filter(function (i) { return i.category === c.id; }) };
+    }).filter(function (g) { return g.list.length > 0; });
+  }
+  function lowStockCount() {
+    return state.items.filter(function (i) { return i.quantity <= i.threshold; }).length;
+  }
+
+  function render() {
+    var app = document.getElementById('app');
+    if (!state.ready) { app.innerHTML = '<div class="loading-screen">连接中…</div>'; return; }
+
+    var lowCount = lowStockCount();
+    try {
+      if (navigator.setAppBadge) {
+        if (lowCount > 0) navigator.setAppBadge(lowCount); else navigator.clearAppBadge();
+      }
+    } catch (e) {}
+    var html = '';
+    html += '<div class="header"><div>';
+    html += '<h1>家里有什么</h1>';
+    if (state.tab === 'inventory') {
+      html += '<p class="subtitle">' + state.items.length + ' 件物品';
+      if (lowCount > 0) html += '<span class="low-badge-inline" id="lowStockLink" style="cursor:pointer;text-decoration:underline"> · ' + lowCount + ' 件库存低</span>';
+      html += '</p>';
+    } else {
+      html += '<p class="subtitle">' + state.shoppingList.length + ' 项待购</p>';
+    }
+    html += '<p class="sync-badge ' + (state.syncOk ? 'sync-ok' : 'sync-bad') + '">' + (state.syncOk ? '● 已同步' : '● 同步失败,检查网络') + '</p>';
+    html += '</div>';
+    if (state.tab === 'inventory') {
+      html += '<button class="add-btn" id="toggleAdd">' + (state.showAdd ? '取消' : '+ 添加物品') + '</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="tab-row">';
+    html += '<button class="tab-btn tabPick' + (state.tab === 'inventory' ? ' active' : '') + '" data-tab="inventory">📦 库存</button>';
+    html += '<button class="tab-btn tabPick' + (state.tab === 'shopping' ? ' active' : '') + '" data-tab="shopping">🛒 购物清单' + (state.shoppingList.length > 0 ? ' (' + state.shoppingList.length + ')' : '') + '</button>';
+    html += '</div>';
+
+    if (state.tab === 'shopping') {
+      html += '<div class="add-form">';
+      html += '<input class="input" id="newShopInput" placeholder="添加清单项,比如牛奶" value="' + esc(state.newShopName) + '" />';
+      html += '<div class="form-row">';
+      html += '<label class="form-label">打算买多少<input class="num-input" type="number" id="newShopQty" value="' + esc(state.newShopQty) + '" /></label>';
+      html += '<label class="form-label">单位<input class="num-input" id="newShopUnit" placeholder="升/毫升/件" value="' + esc(state.newShopUnit) + '" /></label>';
+      html += '</div>';
+      html += '<button class="save-btn" id="addShopBtn">添加到清单</button>';
+      html += '</div>';
+
+      var totalChecked = checkedTotal();
+      var budgetNum = Number(state.shopBudget);
+      var hasBudget = state.shopBudget !== '' && !isNaN(budgetNum) && budgetNum > 0;
+      html += '<div class="add-form" style="flex-direction:row;align-items:center;gap:8px">';
+      html += '<span style="font-size:13px;color:#6B6A63;white-space:nowrap">本次预算 ¥</span>';
+      html += '<input class="num-input" id="budgetInput" type="number" placeholder="不限" value="' + esc(state.shopBudget) + '" style="width:80px" />';
+      if (hasBudget) {
+        var over = totalChecked > budgetNum;
+        html += '<span style="font-size:13px;font-weight:600;color:' + (over ? '#B0402E' : '#5B7F5A') + '">已花 ¥' + (Math.round(totalChecked * 100) / 100) + (over ? ' · 超出 ¥' + (Math.round((totalChecked - budgetNum) * 100) / 100) : '') + '</span>';
+      } else if (totalChecked > 0) {
+        html += '<span style="font-size:13px;color:#6B6A63">已花 ¥' + (Math.round(totalChecked * 100) / 100) + '</span>';
+      }
+      html += '</div>';
+
+      var boughtCount = state.shoppingList.filter(function (s) { return s.checked; }).length;
+      if (boughtCount > 0) {
+        html += '<button class="clear-bought-btn" id="clearBoughtBtn">清空已购买(' + boughtCount + ')</button>';
+      }
+
+      if (state.shoppingList.length === 0) {
+        html += '<div class="empty"><p class="empty-title">购物清单是空的</p><p class="empty-body">库存低的物品旁边点"+清单"就能加进来,买完打勾自动加回库存。</p></div>';
+      } else {
+        state.shoppingList.forEach(function (s) {
+          html += '<div class="shop-row' + (s.checked ? ' checked' : '') + '">';
+          html += '<button class="shop-check buyBtn' + (s.checked ? ' checked-btn' : '') + '" data-id="' + s.id + '">' + (s.checked ? '✓' : '') + '</button>';
+          html += '<div class="shop-name' + (s.checked ? ' struck' : '') + '">' + esc(s.name) + '</div>';
+          html += '<input class="shop-qty-input shopQtyInput" data-id="' + s.id + '" type="number" value="' + esc(s.addQty) + '"' + (s.checked ? ' disabled' : '') + ' />';
+          if (s.itemId && s.checked) {
+            html += '<span style="font-size:12px;color:#8A8778">' + esc(s.unit) + '</span>';
+          } else {
+            html += '<input class="shop-qty-input shopUnitInput" data-id="' + s.id + '" style="width:52px" value="' + esc(s.unit) + '"' + (s.checked ? ' disabled' : '') + ' />';
+          }
+          html += '<input class="shop-price-input shopPriceInput" data-id="' + s.id + '" type="number" placeholder="花了多少钱" value="' + esc(s.price) + '"' + (s.checked ? ' disabled' : '') + ' />';
+          if (!s.checked) html += '<button class="del-btn removeShopBtn" data-id="' + s.id + '">移除</button>';
+          html += '</div>';
+        });
+      }
+      app.innerHTML = html;
+      bindEvents();
+      return;
+    }
+
+    if (state.showAdd) {
+      var f = state.form;
+      html += '<div class="add-form">';
+      html += '<div style="font-size:13px;font-weight:600;color:#6B6A63">' + (state.editingId ? '编辑物品' : '添加物品') + '</div>';
+      html += '<input class="input" id="fName" placeholder="物品名称,如生抽 / 卫生纸" value="' + esc(f.name) + '" />';
+      html += '<div class="cat-picker">';
+      allCategories().forEach(function (c) {
+        var active = f.category === c.id;
+        html += '<button class="cat-chip catPick" data-id="' + c.id + '" style="background:' + (active ? c.bg : '#fff') + ';border-color:' + (active ? c.color : '#DEDDD3') + ';color:' + (active ? c.text : '#6B6A63') + '">' + c.emoji + ' ' + esc(c.label) + '</button>';
+      });
+      html += '<button class="cat-chip dashed" id="toggleAddCat">+ 新建分类</button>';
+      html += '</div>';
+
+      if (state.showAddCat) {
+        var cf = state.catForm;
+        html += '<div class="cat-add-form">';
+        html += '<div class="form-row">';
+        html += '<input class="num-input" style="flex:2" id="catLabel" placeholder="分类名称,如零食" value="' + esc(cf.label) + '" />';
+        html += '<input class="num-input" style="flex:1;text-align:center" id="catEmoji" placeholder="🏷️" value="' + esc(cf.emoji) + '" />';
+        html += '</div>';
+        html += '<div class="swatch-row">';
+        CUSTOM_SWATCHES.forEach(function (s, i) {
+          var sel = cf.swatch === i;
+          html += '<button class="swatch-dot swatchPick" data-i="' + i + '" style="background:' + s.color + ';outline:' + (sel ? '2px solid ' + s.text : 'none') + ';outline-offset:2px"></button>';
+        });
+        html += '</div>';
+        if (state.catFormError) html += '<p class="form-error">' + esc(state.catFormError) + '</p>';
+        html += '<button class="save-btn" id="saveCat">创建分类</button>';
+        html += '</div>';
+      }
+
+      html += '<input class="input" id="fLocation" placeholder="放在哪,如厨房柜子 / 阳台冰箱" value="' + esc(f.location) + '" />';
+      html += '<div class="form-row">';
+      html += '<label class="form-label">数量<input class="num-input" type="number" id="fQty" value="' + esc(f.quantity) + '" /></label>';
+      html += '<label class="form-label">单位<input class="num-input" id="fUnit" placeholder="瓶/包/卷" value="' + esc(f.unit) + '" /></label>';
+      html += '<label class="form-label">低库存提醒线<input class="num-input" type="number" id="fThreshold" value="' + esc(f.threshold) + '" /></label>';
+      html += '</div>';
+      html += '<div class="form-row">';
+      html += '<label class="form-label">每次增减多少<input class="num-input" type="number" step="any" id="fStep" placeholder="比如200(毫升)" value="' + esc(f.step) + '" /></label>';
+      html += '<label class="form-label">过期日期(可选)<input class="num-input" type="date" id="fExpiry" value="' + esc(f.expiryDate) + '" /></label>';
+      html += '</div>';
+      html += '<div class="form-row">';
+      html += '<label class="form-label">总价(可选,自动算单价)<input class="num-input" type="number" id="fTotalPrice" placeholder="花了多少钱" value="' + esc(f.totalPrice) + '" /></label>';
+      html += '</div>';
+      if (state.formError) html += '<p class="form-error">' + esc(state.formError) + '</p>';
+      html += '<button class="save-btn" id="saveItem">' + (state.editingId ? '保存修改' : '保存') + '</button>';
+      html += '</div>';
+    }
+
+    if (state.activeCategory === '__low__') {
+      html += '<div class="filter-row">';
+      html += '<button class="filter-chip filterPick" data-id="all" style="background:#2C2A20;color:#fff;border-color:#2C2A20">← 返回全部</button>';
+      html += '<span class="filter-chip" style="background:#FBF1DD;color:#8C5E12;border-color:#F0DBA8">🔔 库存低清单</span>';
+      html += '</div>';
+    } else {
+      html += '<div class="filter-row">';
+      html += '<button class="filter-chip filterPick" data-id="all" style="background:' + (state.activeCategory === 'all' ? '#2C2A20' : '#fff') + ';color:' + (state.activeCategory === 'all' ? '#fff' : '#6B6A63') + ';border-color:' + (state.activeCategory === 'all' ? '#2C2A20' : '#DEDDD3') + '">全部</button>';
+      allCategories().forEach(function (c) {
+        var active = state.activeCategory === c.id;
+        html += '<button class="filter-chip filterPick" data-id="' + c.id + '" style="background:' + (active ? c.color : '#fff') + ';color:' + (active ? '#fff' : '#6B6A63') + ';border-color:' + (active ? c.color : '#DEDDD3') + '">' + c.emoji + ' ' + esc(c.label) + '</button>';
+      });
+      html += '</div>';
+    }
+
+    if (state.items.length === 0) {
+      html += '<div class="empty"><p class="empty-title">还没有记录任何物品</p><p class="empty-body">点击上方"添加物品",把调料、果蔬、纸品都记下来。</p></div>';
+    } else if (visibleItems().length === 0) {
+      html += '<div class="empty"><p class="empty-body">' + (state.activeCategory === '__low__' ? '现在没有库存低的物品。' : '这个分类下还没有物品。') + '</p></div>';
+    } else {
+      grouped().forEach(function (g) {
+        var cat = g.category === '__low__' ? null : categoryOf(g.category);
+        html += '<div style="margin-bottom:1.25rem">';
+        if (state.activeCategory === 'all' && cat) html += '<div class="group-header">' + cat.emoji + ' ' + esc(cat.label) + '</div>';
+        g.list.forEach(function (item) {
+          var low = item.quantity <= item.threshold;
+          var exp = expiryStatus(item.expiryDate);
+          html += '<div class="item-row" style="border-left-color:' + (low ? '#C08A2E' : 'transparent') + '">';
+          html += '<div class="item-info">';
+          html += '<div class="item-name editItem" data-id="' + item.id + '">' + esc(item.name) + '</div>';
+          html += '<div class="item-meta"><span>' + item.quantity + ' ' + esc(item.unit) + '</span>';
+          if (item.unitPrice != null) {
+            html += '<span>· ¥' + item.unitPrice + '/' + esc(item.unit) + '</span>';
+            if (item.previousUnitPrice != null && item.previousUnitPrice !== item.unitPrice) {
+              html += '<span style="color:#B0AFA0">(上次 ¥' + item.previousUnitPrice + ')</span>';
+            }
+          }
+          if (item.location) html += '<span>· ' + esc(item.location) + '</span>';
+          if (low) html += '<span class="low-badge">库存低</span>';
+          html += '</div>';
+          if (exp) {
+            var color = exp.level === 'expired' ? '#A32D2D' : exp.level === 'soon' ? '#8C5E12' : '#8A8778';
+            html += '<div class="expiry-meta" style="color:' + color + '">' + esc(exp.label) + '</div>';
+          }
+          html += '</div>';
+          html += '<div class="item-controls">';
+          html += '<button class="step-btn qtyMinus" data-id="' + item.id + '">−</button>';
+          html += '<button class="step-btn qtyPlus" data-id="' + item.id + '">+</button>';
+          html += '<button class="del-btn editItem" data-id="' + item.id + '" style="color:#5B7F5A">编辑</button>';
+          html += '<button class="del-btn delItem" data-id="' + item.id + '">删除</button>';
+          if (low) {
+            var inShop = state.shoppingList.some(function (s) { return s.itemId === item.id && !s.checked; });
+            html += inShop
+              ? '<span class="add-to-shop-btn" style="opacity:0.6">已在清单</span>'
+              : '<button class="add-to-shop-btn addShopFromItem" data-id="' + item.id + '">+清单</button>';
+          }
+          html += '</div></div>';
+        });
+        html += '</div>';
+      });
+    }
+
+    app.innerHTML = html;
+    bindEvents();
+  }
+
+  function bindEvents() {
+    document.querySelectorAll('.tabPick').forEach(function (btn) {
+      btn.onclick = function () { state.tab = btn.getAttribute('data-tab'); render(); };
+    });
+
+    var addShopBtn = document.getElementById('addShopBtn');
+    if (addShopBtn) addShopBtn.onclick = addCustomShopItem;
+    var newShopInput = document.getElementById('newShopInput');
+    if (newShopInput) {
+      newShopInput.oninput = function (e) { state.newShopName = e.target.value; };
+      newShopInput.onkeydown = function (e) { if (e.key === 'Enter') addCustomShopItem(); };
+    }
+    var newShopQty = document.getElementById('newShopQty');
+    if (newShopQty) newShopQty.oninput = function (e) { state.newShopQty = e.target.value; };
+    var newShopUnit = document.getElementById('newShopUnit');
+    if (newShopUnit) newShopUnit.oninput = function (e) { state.newShopUnit = e.target.value; };
+    var budgetInput = document.getElementById('budgetInput');
+    if (budgetInput) {
+      budgetInput.oninput = function (e) { state.shopBudget = e.target.value; };
+      budgetInput.onblur = pushBudget;
+    }
+    document.querySelectorAll('.buyBtn').forEach(function (btn) {
+      btn.onclick = function () { toggleShoppingChecked(btn.getAttribute('data-id')); };
+    });
+    var clearBoughtBtn = document.getElementById('clearBoughtBtn');
+    if (clearBoughtBtn) clearBoughtBtn.onclick = clearPurchased;
+    document.querySelectorAll('.removeShopBtn').forEach(function (btn) {
+      btn.onclick = function () { removeShoppingItem(btn.getAttribute('data-id')); };
+    });
+    document.querySelectorAll('.shopQtyInput').forEach(function (el) {
+      el.oninput = function (e) { updateShopQty(el.getAttribute('data-id'), e.target.value); };
+      el.onblur = saveShopQty;
+    });
+    document.querySelectorAll('.shopUnitInput').forEach(function (el) {
+      el.oninput = function (e) { updateShopUnit(el.getAttribute('data-id'), e.target.value); };
+      el.onblur = saveShopQty;
+    });
+    document.querySelectorAll('.shopPriceInput').forEach(function (el) {
+      el.oninput = function (e) { updateShopPrice(el.getAttribute('data-id'), e.target.value); };
+      el.onblur = saveShopQty;
+    });
+    document.querySelectorAll('.addShopFromItem').forEach(function (btn) {
+      btn.onclick = function () { addToShopping(btn.getAttribute('data-id')); };
+    });
+
+    var lowLink = document.getElementById('lowStockLink');
+    if (lowLink) lowLink.onclick = function () { state.activeCategory = '__low__'; render(); };
+
+    document.querySelectorAll('.editItem').forEach(function (el) {
+      el.onclick = function () { startEdit(el.getAttribute('data-id')); };
+    });
+    var toggleAdd = document.getElementById('toggleAdd');
+    if (toggleAdd) toggleAdd.onclick = function () {
+      if (state.showAdd) {
+        state.showAdd = false;
+        state.editingId = null;
+      } else {
+        state.showAdd = true;
+      }
+      render();
+    };
+
+    var toggleAddCat = document.getElementById('toggleAddCat');
+    if (toggleAddCat) toggleAddCat.onclick = function () { state.showAddCat = !state.showAddCat; render(); };
+
+    var saveCat = document.getElementById('saveCat');
+    if (saveCat) saveCat.onclick = submitAddCategory;
+
+    var saveItem = document.getElementById('saveItem');
+    if (saveItem) saveItem.onclick = submitAdd;
+
+    ['fName','fLocation','fQty','fUnit','fThreshold','fExpiry','fTotalPrice','fStep','catLabel','catEmoji'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.oninput = function (e) {
+        var v = e.target.value;
+        var map = { fName: 'name', fLocation: 'location', fQty: 'quantity', fUnit: 'unit', fThreshold: 'threshold', fExpiry: 'expiryDate', fTotalPrice: 'totalPrice', fStep: 'step' };
+        if (map[id]) { state.form[map[id]] = v; }
+        else if (id === 'catLabel') { state.catForm.label = v; }
+        else if (id === 'catEmoji') { state.catForm.emoji = v; }
+      };
+    });
+
+    document.querySelectorAll('.catPick').forEach(function (btn) {
+      btn.onclick = function () { state.form.category = btn.getAttribute('data-id'); render(); };
+    });
+    document.querySelectorAll('.swatchPick').forEach(function (btn) {
+      btn.onclick = function () { state.catForm.swatch = Number(btn.getAttribute('data-i')); render(); };
+    });
+    document.querySelectorAll('.filterPick').forEach(function (btn) {
+      btn.onclick = function () { state.activeCategory = btn.getAttribute('data-id'); render(); };
+    });
+    document.querySelectorAll('.qtyMinus').forEach(function (btn) {
+      btn.onclick = function () { adjustQty(btn.getAttribute('data-id'), -1); };
+    });
+    document.querySelectorAll('.qtyPlus').forEach(function (btn) {
+      btn.onclick = function () { adjustQty(btn.getAttribute('data-id'), 1); };
+    });
+    document.querySelectorAll('.delItem').forEach(function (btn) {
+      btn.onclick = function () { removeItem(btn.getAttribute('data-id')); };
+    });
+  }
+  }
+})();
+</script>
+</body>
+</html>
